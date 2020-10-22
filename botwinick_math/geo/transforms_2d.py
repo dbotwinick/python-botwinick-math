@@ -86,7 +86,7 @@ def calculate_tsr_2d(cs1, cs2, discard_colinear=1e-03):
         if discard_colinear and caac(cs1[[p0, p1], :], atol=discard_colinear):  # skip colinear points for transformation calculations
             continue
         (tx, ty), (sx, sy), rz = calc_tsr(cs1[p0], cs1[p1], cs2[p0], cs2[p1])  # m1, m2, w1, w2
-        tsr[i] = [tx, ty, sx, sy, normalize_angle(rz)]
+        tsr[i] = [tx, ty, sx, sy, normalize_angle(rz, 0.0)]
         i += 1  # advance i
 
     if i == 0:

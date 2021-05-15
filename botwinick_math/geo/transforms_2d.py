@@ -86,7 +86,7 @@ def calculate_tsr_2d(cs1, cs2, discard_colinear=1e-03):
         if discard_colinear and caac(cs1[[p0, p1], :], atol=discard_colinear):  # skip colinear points for transformation calculations
             continue
         (tx, ty), (sx, sy), rz = calc_tsr(cs1[p0], cs1[p1], cs2[p0], cs2[p1])  # m1, m2, w1, w2
-        tsr[i] = [tx, ty, sx, sy, normalize_angle(rz, 0.0)]
+        tsr[i] = [tx, ty, sx, sy, normalize_angle(rz, center_angle_radians=0)]
         i += 1  # advance i
 
     if i == 0:
@@ -117,10 +117,11 @@ class TransformTSR2D(object):
     """
     Object to handle transformations of translation, scale, and rotation. Note that:
     1) implementation does not use matrices and is basically hacked together
-    2) is meant to be compatible for many uses as a drop-in replacement for pyproj (basically for 2D Helmert transformations only)
+    2) is meant to be compatible for many uses as a drop-in replacement for pyproj (basically for 2D affine/Helmert transformations only)
     """
     _xfm = None
     _inv = None  # TODO: it would be reasonable / convenient to compute matrices and handle inverse that way...
+    _post = None  # post-forward-transformation adjustments # TODO: this should not exist; it's a lazy BS fix...
 
     # def __init__(self):
     #     pass
@@ -177,9 +178,9 @@ class TransformTSR2D(object):
         # save forward transformation
         result._xfm = (tx, ty), (sx, sy), theta
         # determine inverse transformation by applying forward transformation # TODO: verify, latest incarnation is unchecked!
-        cs1b = [(35 + tx + 100.0 * sx + cs1a[0]), (35 + ty + 100.0 * sy + cs1a[1])]  # arbitrary 2nd point
+        cs1b = [(35 + tx + 100.0 * sx + cs1a[0, 0]), (35 + ty + 100.0 * sy + cs1a[0, 1])]  # arbitrary 2nd point
         cs2b = result.transform(cs1b[0], cs1b[1])  # apply forward TSR on arbitrary 2nd point
-        result._inv = calculate_tsr_2d_2p(cs2a, cs2b, cs1a, cs1b)
+        result._inv = calculate_tsr_2d_2p((cs2a[0, 0], cs2a[0, 1]), cs2b, (cs1a[0, 0], cs1a[0, 1]), cs1b)
         return result
 
     @property
@@ -211,6 +212,20 @@ class TransformTSR2D(object):
         self._inv = (itx - tx, ity - ty), i_s, i_t
         return self
 
+    # def set_post_transform(self, sx=1.0, sy=1.0, theta=0.0):
+    #     """
+    #     Configure adjustments to be made to the transform after the initial transformation. Current implementation
+    #     actually performs further transformations after forward transformation and reversed before inverse; however,
+    #     that should be replaced with adjusting the forward and inverse transformation definitions.
+    #
+    #     :param sx: scale factor in x-direction, default=1.0
+    #     :param sy: scale factor in y-direction, default=1.0
+    #     :param theta: rotation/theta, default=0.0 (no rotation)
+    #     :return: self
+    #     """
+    #     self._post = (0.0, 0.0), (sx, sy), theta
+    #     return self
+
     def transform(self, x, y, inverse=False, **kwargs):
         """
         Perform transformation on given x and y coordinates
@@ -226,7 +241,9 @@ class TransformTSR2D(object):
             inverse = direction == 'INVERSE' or getattr(direction, 'value', None) == 'INVERSE'  # compat w/ pyproj API; IDENT not supported
         x = np.asarray(x)
         y = np.asarray(y)
-        return transform_2d_coordinates(self._inv if inverse else self._xfm, x, y)
+        x, y = transform_2d_coordinates(self._inv if inverse else self._xfm, x, y)
+        # TODO: implement post-transform? (...or leave it disabled)
+        return x, y
 
     def inverse(self, x, y):
         """

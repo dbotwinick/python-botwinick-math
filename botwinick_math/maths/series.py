@@ -56,6 +56,7 @@ def thin_series_data(x, y, rtol=0, atol=1E-06):
     :return: tuple of thinned out (x, y)
     """
     x = np.asarray(x)
+    # noinspection DuplicatedCode
     y = np.asarray(y)
 
     # first method just looked at adjacent points, but this caused a few errors in 'flat peaks'
@@ -73,3 +74,31 @@ def thin_series_data(x, y, rtol=0, atol=1E-06):
     y_ = y[real_variations]
 
     return t_, y_
+
+
+def thin_series_data_1d(y, rtol=0, atol=1E-06):
+    """
+    Thin out time series data by removing points that are surrounded by the same (or very similar) y coordinates.
+
+    This is a relatively conservative way to thin data--and the same as `thin_series_data` except only takes the "y" values.
+
+    Note that if y is a numpy array, the resulting array will be a view of the original data.
+
+    :param y: array of positions / y-coordinates
+    :param rtol: relative tolerance
+    :param atol: absolute tolerance
+    :return: thinned out y
+    """
+    # noinspection DuplicatedCode
+    y = np.asarray(y)
+
+    real_variations = np.ones(y.size, dtype=bool)
+    # Aside from the 1st and last point, remove points whose y values are equal to
+    # both the point before and the point after it.
+    real_variations[1:-1] = np.logical_or(
+        ~np.isclose(y[1:-1], y[:-2], rtol=rtol, atol=atol),
+        ~np.isclose(y[1:-1], y[2:], rtol=rtol, atol=atol)
+    )
+    y_ = y[real_variations]
+
+    return y_
